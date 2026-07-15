@@ -20,10 +20,7 @@ build/
 *.swo
 .DS_Store
 
-# Coverage & dist
+# Coverage
 htmlcov/
 .coverage
 coverage.xml
-dist/
-build/
-*.egg-info/
