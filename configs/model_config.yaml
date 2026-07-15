@@ -1,0 +1,40 @@
+model:
+  name: xgboost_churn
+  type: xgboost
+  params:
+    n_estimators: 500
+    max_depth: 6
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 3
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    eval_metric: auc
+    early_stopping_rounds: 50
+
+features:
+  numerical:
+    - tenure
+    - monthly_charges
+    - total_charges
+    - num_support_tickets
+    - avg_monthly_usage
+  categorical:
+    - contract_type
+    - payment_method
+  target: churn
+
+training:
+  test_size: 0.2
+  random_state: 42
+  cv_folds: 5
+  # Optuna tuning is implemented (see src/train.py:objective) but off by
+  # default so `make train` finishes in seconds on the sample data instead
+  # of running 100 trials x 5-fold CV. Flip optimize to true to use it.
+  optimize: false
+  n_trials: 20
+
+mlflow:
+  experiment_name: churn_prediction
+  tracking_uri: sqlite:///mlflow.db
