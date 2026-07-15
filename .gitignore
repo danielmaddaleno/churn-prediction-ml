@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+data/raw/*
+!data/raw/churn_data.csv
+mlflow.db
+mlruns/
+artifacts/
+predictions.csv
+*.egg-info/
+dist/
+build/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage & dist
+htmlcov/
+.coverage
+coverage.xml
+dist/
+build/
+*.egg-info/

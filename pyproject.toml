@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "churn-prediction-ml"
+version = "0.1.0"
+description = "End-to-end churn prediction pipeline with XGBoost and SHAP"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+# "." lets tests import the package as `src.feature_engineering` (how the
+# existing tests do it); "src" lets tests import modules the same flat way
+# train.py/predict.py do internally (`from data_loader import ...`), which
+# the train->predict smoke test needs.
+pythonpath = [".", "src"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
