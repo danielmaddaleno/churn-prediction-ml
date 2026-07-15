@@ -82,6 +82,7 @@ Covers `ChurnFeatureTransformer` (including a regression test for a bug where a 
 
 - Improve test coverage
 - Add benchmarks against a real dataset
+- Add a Dockerfile for reproducible runs
 
 ## License
 
