@@ -5,6 +5,7 @@ import logging
 
 import mlflow
 import pandas as pd
+from mlflow.exceptions import MlflowException
 
 from data_loader import load_data
 
@@ -19,7 +20,15 @@ def predict(input_path: str, output_path: str, model_uri: str = "models:/xgboost
     # not a bare classifier, so it expects the same raw columns train.py
     # started from. Applying ChurnFeatureTransformer here too would run the
     # transform twice and feed the model data it was never trained on.
-    model = mlflow.sklearn.load_model(model_uri)
+    try:
+        model = mlflow.sklearn.load_model(model_uri)
+    except MlflowException as exc:
+        raise RuntimeError(
+            f"Could not load model '{model_uri}' from the MLflow registry. "
+            "Make sure a model has been trained and registered first "
+            "(run train.py), and that MLFLOW_TRACKING_URI points at the "
+            "same store used for training."
+        ) from exc
 
     feature_cols = [c for c in df.columns if c not in ("customer_id", "churn")]
     X = df[feature_cols]
