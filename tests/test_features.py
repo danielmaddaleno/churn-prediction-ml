@@ -65,6 +65,21 @@ def test_new_customer_zero_tenure_has_no_nan(transformer, sample_data):
     assert result.loc[0, "tenure_bucket"] == 0.0
 
 
+def test_unseen_category_maps_to_sentinel(transformer, sample_data):
+    """A category value not present at fit time (e.g. a brand new contract
+    type at inference) should map to -1 instead of raising and dropping the
+    whole batch. Known categories keep their original encoding."""
+    transformer.fit(sample_data)
+
+    new_data = sample_data.copy()
+    new_data.loc[0, "contract_type"] = "month_to_month_promo"  # unseen at fit
+    result = transformer.transform(new_data)
+
+    assert result.loc[0, "contract_type"] == -1
+    # Rows with known categories are unaffected and stay non-negative.
+    assert (result.loc[1:, "contract_type"] >= 0).all()
+
+
 def test_no_nan_across_all_engineered_columns(transformer, sample_data):
     """Guard against any future interaction feature reintroducing NaN,
     across every tenure value in the fixture (0, 3, 6, 12, ...)."""

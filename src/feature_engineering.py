@@ -33,10 +33,18 @@ class ChurnFeatureTransformer(BaseEstimator, TransformerMixin):
         # Scale numerical features
         df[self.numerical_cols] = self.scaler.transform(df[self.numerical_cols])
 
-        # Encode categorical features
+        # Encode categorical features. At inference time a customer can carry a
+        # category value that was never seen during fit (a new contract type,
+        # a new payment method). LabelEncoder.transform raises on those and
+        # drops the whole batch, so map any unseen value to -1 and warn instead.
         for col in self.categorical_cols:
             le = self.label_encoders[col]
-            df[col] = le.transform(df[col].astype(str))
+            values = df[col].astype(str)
+            mapping = {label: idx for idx, label in enumerate(le.classes_)}
+            unseen = sorted(set(values) - set(mapping))
+            if unseen:
+                logger.warning("Unseen categories in %s mapped to -1: %s", col, unseen)
+            df[col] = values.map(mapping).fillna(-1).astype(int)
 
         # Interaction features
         df = self._add_interaction_features(df)
