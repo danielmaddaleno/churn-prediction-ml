@@ -52,6 +52,15 @@ def validate_schema(df: pd.DataFrame) -> bool:
     if df["monthly_charges"].min() < 0:
         issues.append("Negative monthly_charges found")
 
+    # The churn target must be binary. A stray label (a 2, or a string
+    # "Yes"/"No" that never got encoded) slips past training: train.py does
+    # y.astype(int), which crashes on strings and silently turns a 3-value
+    # column into a bogus multiclass problem for a binary classifier. Catch
+    # it here while it is still a data issue, not a modelling mystery.
+    invalid_churn = set(df["churn"].dropna().unique()) - {0, 1}
+    if invalid_churn:
+        issues.append(f"Non-binary churn target values: {sorted(map(str, invalid_churn))}")
+
     if issues:
         for issue in issues:
             logger.warning("Data issue: %s", issue)
