@@ -48,3 +48,11 @@ def test_validate_schema_flags_high_null_columns(sample_data):
     df = pd.concat([sample_data] * 4, ignore_index=True)
     df.loc[: len(df) // 2, "monthly_charges"] = None
     assert validate_schema(df) is False
+
+
+def test_validate_schema_flags_non_binary_churn(sample_data):
+    # A stray label in the churn target (here a 2) must be caught here, while
+    # it is still a data issue, rather than turning into a bogus multiclass
+    # run once train.py casts the column with astype(int).
+    sample_data.loc[0, "churn"] = 2
+    assert validate_schema(sample_data) is False
