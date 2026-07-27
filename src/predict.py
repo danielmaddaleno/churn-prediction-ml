@@ -41,10 +41,15 @@ def predict(input_path: str, output_path: str, model_uri: str = "models:/xgboost
             "customer_id": df["customer_id"],
             "churn_probability": probabilities,
             "churn_prediction": predictions,
+            # include_lowest so a probability of exactly 0.0 lands in the
+            # "low" bin. Without it pd.cut leaves the leftmost edge open and a
+            # 0.0 churn probability (which tree models do produce) falls
+            # through as a NaN risk_tier.
             "risk_tier": pd.cut(
                 probabilities,
                 bins=[0, 0.3, 0.6, 1.0],
                 labels=["low", "medium", "high"],
+                include_lowest=True,
             ),
         }
     )
