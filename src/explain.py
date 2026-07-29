@@ -24,7 +24,24 @@ def explain_global(model, X: pd.DataFrame, output_path: str = "shap_summary.png"
 
 
 def explain_local(model, X: pd.DataFrame, idx: int) -> dict:
-    """Explain a single prediction with SHAP."""
+    """Explain a single prediction with SHAP.
+
+    Args:
+        model: A fitted tree model compatible with shap.TreeExplainer.
+        X: The feature frame the model was scored on.
+        idx: Positional row index to explain (negative indexing allowed,
+            same as ``DataFrame.iloc``).
+
+    Raises:
+        IndexError: If ``idx`` is outside the rows of ``X``.
+    """
+    # Validate the row index up front so an out-of-range value fails with a
+    # clear message here instead of a bare "positional indexers are
+    # out-of-bounds" from iloc after building the (expensive) explainer.
+    n_rows = len(X)
+    if not -n_rows <= idx < n_rows:
+        raise IndexError(f"row index {idx} is out of range for {n_rows} rows")
+
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X.iloc[[idx]])
 
