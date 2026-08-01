@@ -61,6 +61,14 @@ def validate_schema(df: pd.DataFrame) -> bool:
     if invalid_churn:
         issues.append(f"Non-binary churn target values: {sorted(map(str, invalid_churn))}")
 
+    # customer_id is the primary key: each customer should appear once. A
+    # duplicated id double counts a customer and, worse, lets the same
+    # customer end up in both the train and test split, leaking the label
+    # and inflating the reported AUC. Flag it here before training splits.
+    dup_ids = int(df["customer_id"].duplicated().sum())
+    if dup_ids:
+        issues.append(f"Duplicate customer_id values: {dup_ids}")
+
     if issues:
         for issue in issues:
             logger.warning("Data issue: %s", issue)
