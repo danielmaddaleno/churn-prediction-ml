@@ -60,9 +60,21 @@ def explain_local(model, X: pd.DataFrame, idx: int) -> dict:
 
 
 def explain_cohort(model, X: pd.DataFrame, cohort_mask: np.ndarray) -> pd.DataFrame:
-    """Aggregate SHAP explanations for a cohort of customers."""
-    explainer = shap.TreeExplainer(model)
+    """Aggregate SHAP explanations for a cohort of customers.
+
+    Raises:
+        ValueError: If ``cohort_mask`` selects no rows.
+    """
+    # A cohort filter that matches nobody (e.g. "tenure > 100" on a dataset
+    # capped at 72) otherwise slips through as an empty frame. SHAP then
+    # returns a zero-row result whose column mean is all NaN, so the caller
+    # gets a plausible-looking importance table full of NaN instead of an
+    # error. Fail loudly up front, before building the explainer.
     X_cohort = X[cohort_mask]
+    if len(X_cohort) == 0:
+        raise ValueError("cohort_mask selected 0 rows; nothing to explain")
+
+    explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X_cohort)
 
     mean_abs_shap = pd.DataFrame(np.abs(shap_values), columns=X.columns).mean().sort_values(ascending=False)
