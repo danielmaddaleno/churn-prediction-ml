@@ -1,0 +1,3 @@
+# The EDA notebook ships with its outputs, which makes it outweigh the
+# source and get the whole repo labelled as Jupyter Notebook.
+*.ipynb linguist-documentation
