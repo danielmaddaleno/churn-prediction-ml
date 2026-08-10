@@ -56,3 +56,11 @@ def test_validate_schema_flags_non_binary_churn(sample_data):
     # run once train.py casts the column with astype(int).
     sample_data.loc[0, "churn"] = 2
     assert validate_schema(sample_data) is False
+
+
+def test_validate_schema_flags_duplicate_customer_id(sample_data):
+    # customer_id is the primary key, so a repeated id must be flagged here.
+    # Left unchecked, the same customer can land in both the train and test
+    # split, leaking the label and inflating the reported AUC.
+    sample_data.loc[2, "customer_id"] = sample_data.loc[0, "customer_id"]
+    assert validate_schema(sample_data) is False
