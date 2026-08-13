@@ -46,10 +46,19 @@ def validate_schema(df: pd.DataFrame) -> bool:
     if not high_nulls.empty:
         issues.append(f"High null columns: {high_nulls.to_dict()}")
 
-    if df["tenure"].min() < 0:
+    # tenure and monthly_charges must be numeric for the range checks below.
+    # A raw CSV export with a stray "N/A" or "unknown" in one of these columns
+    # reads back as an object column, and the .min() < 0 comparison then raises
+    # a cryptic TypeError (comparing str to int) that crashes validation.
+    # Report it as a data issue and skip the range check on that column.
+    non_numeric = [c for c in ("tenure", "monthly_charges") if not pd.api.types.is_numeric_dtype(df[c])]
+    if non_numeric:
+        issues.append(f"Non-numeric values in numeric columns: {non_numeric}")
+
+    if "tenure" not in non_numeric and df["tenure"].min() < 0:
         issues.append("Negative tenure values found")
 
-    if df["monthly_charges"].min() < 0:
+    if "monthly_charges" not in non_numeric and df["monthly_charges"].min() < 0:
         issues.append("Negative monthly_charges found")
 
     # The churn target must be binary. A stray label (a 2, or a string
