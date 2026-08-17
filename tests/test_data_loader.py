@@ -22,6 +22,17 @@ def test_load_data_missing_file_raises(tmp_path):
         load_data(missing_path)
 
 
+def test_load_data_empty_file_raises(tmp_path, sample_data):
+    # A header-only CSV used to load "successfully" and only fail deep in
+    # training, when the stratified split hit an empty frame. Fail fast at
+    # load time with a clear message instead.
+    csv_path = tmp_path / "empty.csv"
+    sample_data.iloc[0:0].to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="No data rows"):
+        load_data(csv_path)
+
+
 def test_load_data_missing_required_column_raises(tmp_path, sample_data):
     csv_path = tmp_path / "churn.csv"
     sample_data.drop(columns=["churn"]).to_csv(csv_path, index=False)

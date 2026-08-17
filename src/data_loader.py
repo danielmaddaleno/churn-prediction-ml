@@ -19,7 +19,7 @@ def load_data(filepath: str | Path) -> pd.DataFrame:
 
     Raises:
         FileNotFoundError: If the file doesn't exist.
-        ValueError: If required columns are missing.
+        ValueError: If required columns are missing or the file has no rows.
     """
     filepath = Path(filepath)
     if not filepath.exists():
@@ -32,6 +32,12 @@ def load_data(filepath: str | Path) -> pd.DataFrame:
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
+
+    # A header-only CSV otherwise loads fine here and only blows up much
+    # later, when train.py calls train_test_split with stratify on an empty
+    # frame and raises a confusing sklearn error. Fail loudly at load time.
+    if df.empty:
+        raise ValueError(f"No data rows found in {filepath}; the file has column headers but no records")
 
     logger.info("Loaded %d rows, %d columns", len(df), len(df.columns))
     return df
