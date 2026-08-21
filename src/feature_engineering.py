@@ -30,6 +30,11 @@ class ChurnFeatureTransformer(BaseEstimator, TransformerMixin):
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         df = X.copy()
 
+        # Interactions come first, off the raw columns. Deriving them from
+        # z-scored inputs collapses the tenure buckets into one value and lets
+        # ticket_rate divide by a denominator that crosses zero.
+        df = self._add_interaction_features(df)
+
         # Scale numerical features
         df[self.numerical_cols] = self.scaler.transform(df[self.numerical_cols])
 
@@ -46,21 +51,18 @@ class ChurnFeatureTransformer(BaseEstimator, TransformerMixin):
                 logger.warning("Unseen categories in %s mapped to -1: %s", col, unseen)
             df[col] = values.map(mapping).fillna(-1).astype(int)
 
-        # Interaction features
-        df = self._add_interaction_features(df)
-
         logger.info("Transformed %d features -> %d features", len(X.columns), len(df.columns))
         return df
 
     def _add_interaction_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create interaction features that capture business logic."""
+        """Create interaction features from the raw, unscaled columns."""
         if "tenure" in df.columns and "monthly_charges" in df.columns:
             df["lifetime_value"] = df["tenure"] * df["monthly_charges"]
 
         if "tenure" in df.columns:
             # bins start at -1 (not 0) so a brand new customer with tenure == 0
-            # still lands in the first bucket instead of falling outside the
-            # range and becoming NaN (pd.cut bins are left-open by default).
+            # still lands in the first bucket. pd.cut intervals are open on the
+            # left, so an edge of 0 would leave those rows as NaN.
             df["tenure_bucket"] = pd.cut(
                 df["tenure"],
                 bins=[-1, 12, 24, 48, 72, np.inf],
