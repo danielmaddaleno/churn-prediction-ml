@@ -47,7 +47,7 @@ make eval    # load the registered model and score data/raw/churn_data.csv
 make test    # run the test suite
 ```
 
-`make train` trains an XGBoost classifier on the committed sample data and prints a test ROC-AUC along with a classification report. Against the sample data it lands around 0.76 ROC-AUC.
+`make train` trains an XGBoost classifier on the committed sample data and prints a test ROC-AUC along with a classification report. Against the sample data it lands around 0.75 ROC-AUC. The transformer is fit on the training rows only and early stopping watches a validation slice held out from those rows, so the test split is scored once at the end and nothing before that has seen it.
 
 This is a synthetic dataset, so the number is a sanity check that the pipeline learns real signal (tenure and contract type genuinely drive the label the generator assigns), not a benchmark. Run `make train` yourself to see the exact numbers, or flip `optimize: true` in `configs/model_config.yaml` to run Optuna tuning instead of the fixed params in `model.params` (slower, off by default so `make train` finishes in seconds).
 

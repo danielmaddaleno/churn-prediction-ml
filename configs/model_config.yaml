@@ -27,6 +27,9 @@ features:
 
 training:
   test_size: 0.2
+  # Slice of the training rows held out for early stopping, so the test set
+  # is only touched for the final score.
+  validation_size: 0.2
   random_state: 42
   cv_folds: 5
   # Optuna tuning is implemented (see src/train.py:objective) but off by

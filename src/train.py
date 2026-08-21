@@ -8,7 +8,7 @@ import mlflow.sklearn
 import optuna
 import yaml
 from sklearn.metrics import classification_report, roc_auc_score
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
 
@@ -64,23 +64,24 @@ def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
     X = df[feature_cols]
     y = df[cfg_feat["target"]].astype(int)
 
-    # Feature engineering
-    transformer = ChurnFeatureTransformer(
-        numerical_cols=cfg_feat["numerical"],
-        categorical_cols=cfg_feat["categorical"],
-    )
-    X_transformed = transformer.fit_transform(X)
-
-    # Train/test split
-    from sklearn.model_selection import train_test_split
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_transformed,
+    # Split before fitting the transformer. Fitting it on the whole frame
+    # leaks the test rows into the scaler means and the encoder classes, so
+    # the reported AUC comes out higher than the model would score on data
+    # it has never seen.
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
+        X,
         y,
         test_size=cfg_train["test_size"],
         random_state=cfg_train["random_state"],
         stratify=y,
     )
+
+    transformer = ChurnFeatureTransformer(
+        numerical_cols=cfg_feat["numerical"],
+        categorical_cols=cfg_feat["categorical"],
+    )
+    X_train = transformer.fit_transform(X_train_raw)
+    X_test = transformer.transform(X_test_raw)
 
     # Hyperparameter optimization
     if cfg_train.get("optimize", False):
@@ -105,12 +106,22 @@ def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
 
     with mlflow.start_run():
         model = XGBClassifier(**final_params)
-        model.fit(
-            X_train,
-            y_train,
-            eval_set=[(X_test, y_test)],
-            verbose=False,
-        )
+
+        if final_params.get("early_stopping_rounds"):
+            # Early stopping needs rows the model does not fit on. It used to
+            # watch the test set, which picks the boosting round that scores
+            # best on the same split the AUC below is reported from. Hold out
+            # a validation slice of the training rows instead.
+            X_fit, X_val, y_fit, y_val = train_test_split(
+                X_train,
+                y_train,
+                test_size=cfg_train.get("validation_size", 0.2),
+                random_state=cfg_train["random_state"],
+                stratify=y_train,
+            )
+            model.fit(X_fit, y_fit, eval_set=[(X_val, y_val)], verbose=False)
+        else:
+            model.fit(X_train, y_train, verbose=False)
 
         # Evaluate
         y_pred_proba = model.predict_proba(X_test)[:, 1]
