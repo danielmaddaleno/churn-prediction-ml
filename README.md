@@ -72,11 +72,11 @@ python src/predict.py --input path/to/new_customers.csv --output predictions.csv
 make test
 ```
 
-Covers `ChurnFeatureTransformer` (including a regression test for a bug where a brand-new customer with `tenure == 0` produced `NaN` in the tenure bucket feature), `data_loader.load_data`/`validate_schema`, and a smoke test that trains on tiny synthetic data, registers the model, and runs it through `predict.py`.
+Covers `ChurnFeatureTransformer` (interaction feature values checked against `data/raw/churn_data.csv`, including a brand-new customer with `tenure == 0`), `data_loader.load_data`/`validate_schema`, the SHAP helpers against a fitted pipeline, how `train.py` splits the data, and a smoke test that trains on tiny synthetic data, registers the model, and runs it through `predict.py`.
 
 ## Explainability
 
-`src/explain.py` generates SHAP feature importance, both global (which features drive churn across all customers) and local (why one customer scored the way they did), against a trained model.
+`src/explain.py` generates SHAP feature importance, both global (which features drive churn across all customers) and local (why one customer scored the way they did). It takes the pipeline `train.py` registers, applies the fitted transform itself and hands the classifier to `shap.TreeExplainer`, so it reads the same raw columns `predict.py` does. A bare classifier works too, with features already transformed.
 
 ## Roadmap
 
