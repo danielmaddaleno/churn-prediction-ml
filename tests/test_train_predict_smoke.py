@@ -11,56 +11,12 @@ numbers and raise, instead of silently producing wrong predictions.
 import sys
 from pathlib import Path
 
-import pytest
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from make_sample_data import generate_churn_data  # noqa: E402
 
 import predict as predict_module  # noqa: E402
 import train as train_module  # noqa: E402
-
-
-@pytest.fixture
-def tiny_config(tmp_path):
-    """A training config sized for a fast test run, not real training."""
-    config = {
-        "model": {
-            "name": "xgboost_churn_test",
-            "type": "xgboost",
-            "params": {
-                "n_estimators": 20,
-                "max_depth": 3,
-                "learning_rate": 0.1,
-            },
-        },
-        "features": {
-            "numerical": [
-                "tenure",
-                "monthly_charges",
-                "total_charges",
-                "num_support_tickets",
-                "avg_monthly_usage",
-            ],
-            "categorical": ["contract_type", "payment_method"],
-            "target": "churn",
-        },
-        "training": {
-            "test_size": 0.25,
-            "random_state": 42,
-            "cv_folds": 3,
-            "optimize": False,
-            "n_trials": 1,
-        },
-        "mlflow": {
-            "experiment_name": "test_churn",
-            "tracking_uri": f"sqlite:///{tmp_path / 'mlflow.db'}",
-        },
-    }
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(yaml.dump(config))
-    return config_path
 
 
 def test_train_then_predict_smoke(tmp_path, tiny_config, monkeypatch):
@@ -74,7 +30,9 @@ def test_train_then_predict_smoke(tmp_path, tiny_config, monkeypatch):
     train_module.train(str(tiny_config), str(data_path), model_name)
 
     output_path = tmp_path / "predictions.csv"
-    results = predict_module.predict(str(data_path), str(output_path), model_uri=f"models:/{model_name}/latest")
+    results = predict_module.predict(
+        str(data_path), str(output_path), model_uri=f"models:/{model_name}/latest", config_path=str(tiny_config)
+    )
 
     assert output_path.exists()
     assert len(results) == len(df)

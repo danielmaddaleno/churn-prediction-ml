@@ -5,16 +5,45 @@ import logging
 
 import mlflow
 import pandas as pd
+import yaml
 from mlflow.exceptions import MlflowException
 
 from data_loader import load_data
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CONFIG = "configs/model_config.yaml"
 
-def predict(input_path: str, output_path: str, model_uri: str = "models:/xgboost_churn/latest"):
+
+def feature_columns(config_path: str) -> list[str]:
+    """Feature columns the model was trained on, in the order train.py used."""
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    cfg_feat = config["features"]
+    return list(cfg_feat["numerical"]) + list(cfg_feat["categorical"])
+
+
+def predict(
+    input_path: str,
+    output_path: str,
+    model_uri: str = "models:/xgboost_churn/latest",
+    config_path: str = DEFAULT_CONFIG,
+):
     """Generate churn predictions for new data."""
     df = load_data(input_path)
+
+    # Pick the feature columns by name from the training config instead of
+    # taking whatever the CSV happens to carry. An export with an extra
+    # column used to reach the model and fail inside xgboost, with a message
+    # about DMatrix dtypes rather than about the input file.
+    feature_cols = feature_columns(config_path)
+    missing = [c for c in feature_cols if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"{input_path} is missing feature columns the model needs: {missing}. "
+            f"The expected columns are listed under 'features' in {config_path}."
+        )
+    X = df[feature_cols]
 
     # The registered model is a Pipeline (feature transform + classifier),
     # not a bare classifier, so it expects the same raw columns train.py
@@ -29,9 +58,6 @@ def predict(input_path: str, output_path: str, model_uri: str = "models:/xgboost
             "(run train.py), and that MLFLOW_TRACKING_URI points at the "
             "same store used for training."
         ) from exc
-
-    feature_cols = [c for c in df.columns if c not in ("customer_id", "churn")]
-    X = df[feature_cols]
 
     probabilities = model.predict_proba(X)[:, 1]
     predictions = model.predict(X)
@@ -67,5 +93,6 @@ if __name__ == "__main__":
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", default="predictions.csv")
     parser.add_argument("--model-uri", default="models:/xgboost_churn/latest")
+    parser.add_argument("--config", default=DEFAULT_CONFIG)
     args = parser.parse_args()
-    predict(args.input, args.output, args.model_uri)
+    predict(args.input, args.output, args.model_uri, args.config)

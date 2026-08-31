@@ -14,7 +14,7 @@ train:
 	PYTHONPATH=src python src/train.py --config configs/model_config.yaml --input data/raw/churn_data.csv
 
 eval:
-	PYTHONPATH=src python src/predict.py --input data/raw/churn_data.csv --output predictions.csv
+	PYTHONPATH=src python src/predict.py --config configs/model_config.yaml --input data/raw/churn_data.csv --output predictions.csv
 
 test:
 	pytest tests/ -v --tb=short

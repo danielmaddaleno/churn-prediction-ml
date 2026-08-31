@@ -55,12 +55,12 @@ To use your own data, point `--input` at a CSV with `customer_id`, the numerical
 
 ```bash
 python src/train.py --config configs/model_config.yaml --input path/to/your_data.csv
-python src/predict.py --input path/to/new_customers.csv --output predictions.csv
+python src/predict.py --config configs/model_config.yaml --input path/to/new_customers.csv --output predictions.csv
 ```
 
 ## How train and predict stay in sync
 
-`train.py` wraps the fitted `ChurnFeatureTransformer` and the fitted `XGBClassifier` in a single `sklearn.Pipeline` and registers that pipeline with MLflow, not the bare model. `predict.py` loads the registered pipeline and passes it the same raw columns train.py started from. That's deliberate: a model trained on transformed features (scaled numerics, encoded categoricals, derived columns like `tenure_bucket`) will silently produce wrong predictions if you serve it engineered-at-training-time-only features raw. Keeping the transform inside the artifact that gets loaded at inference time removes that failure mode.
+`train.py` wraps the fitted `ChurnFeatureTransformer` and the fitted `XGBClassifier` in a single `sklearn.Pipeline` and registers that pipeline with MLflow, not the bare model. `predict.py` loads the registered pipeline and passes it the same raw columns train.py started from, selected by name from the same config so an input file with extra columns still scores. That's deliberate: a model trained on transformed features (scaled numerics, encoded categoricals, derived columns like `tenure_bucket`) will silently produce wrong predictions if you serve it engineered-at-training-time-only features raw. Keeping the transform inside the artifact that gets loaded at inference time removes that failure mode.
 
 ## Notebook
 
