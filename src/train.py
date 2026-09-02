@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 def load_config(path: str) -> dict:
     with open(path) as f:
-        return yaml.safe_load(f)
+        config: dict = yaml.safe_load(f)
+    return config
 
 
 def objective(trial, X_train, y_train, cv_folds: int) -> float:
@@ -40,7 +41,7 @@ def objective(trial, X_train, y_train, cv_folds: int) -> float:
     model = XGBClassifier(**params, eval_metric="auc", random_state=42)
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
     scores = cross_val_score(model, X_train, y_train, cv=cv, scoring="roc_auc")
-    return scores.mean()
+    return float(scores.mean())
 
 
 def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
