@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "End-to-end churn prediction pipeline with XGBoost and SHAP"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [tool.setuptools.packages.find]
 include = ["src*"]
@@ -23,10 +23,10 @@ python_files = "test_*.py"
 pythonpath = [".", "src"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 
 [tool.black]
 line-length = 120
-target-version = ["py310"]
+target-version = ["py311"]
