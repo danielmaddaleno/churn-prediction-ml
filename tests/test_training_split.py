@@ -122,3 +122,17 @@ def test_transformer_is_fit_on_training_rows_only(tmp_path, early_stopping_confi
     X_train_raw, _ = _expected_split(df)
     assert np.allclose(scaler.mean_, X_train_raw[NUMERICAL].mean().to_numpy())
     assert not np.allclose(scaler.mean_, df[NUMERICAL].mean().to_numpy())
+
+
+def test_train_refuses_duplicate_customer_ids(tmp_path, early_stopping_config, monkeypatch):
+    """A duplicated id puts the same customer on both sides of the split.
+    validate_schema already flagged it; train.py has to act on that."""
+    monkeypatch.chdir(tmp_path)
+
+    df = generate_churn_data(n_rows=200, seed=4)
+    df.loc[df.index[1], "customer_id"] = df.loc[df.index[0], "customer_id"]
+    data_path = tmp_path / "churn_data.csv"
+    df.to_csv(data_path, index=False)
+
+    with pytest.raises(ValueError, match="failed schema validation"):
+        train_module.train(str(early_stopping_config), str(data_path), "xgboost_churn_dup_test")

@@ -58,7 +58,8 @@ def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
 
     # Load data
     df = load_data(input_path)
-    validate_schema(df)
+    if not validate_schema(df):
+        raise ValueError(f"{input_path} failed schema validation, see the warnings above")
 
     # Split features and target
     feature_cols = cfg_feat["numerical"] + cfg_feat["categorical"]
