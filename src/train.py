@@ -103,7 +103,7 @@ def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
     # false), so fill in defaults instead of passing them positionally,
     # which would collide with the unpacked dict.
     final_params = dict(best_params)
-    final_params.setdefault("eval_metric", "auc")
+    final_params.setdefault("eval_metric", "logloss")
     final_params.setdefault("random_state", 42)
 
     with mlflow.start_run():
