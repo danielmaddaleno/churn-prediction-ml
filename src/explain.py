@@ -1,5 +1,6 @@
 """SHAP-based model explanations."""
 
+import argparse
 import logging
 
 import matplotlib.pyplot as plt
@@ -8,7 +9,13 @@ import pandas as pd
 import shap
 from sklearn.pipeline import Pipeline
 
+from data_loader import load_data
+from predict import load_registered_model, select_feature_frame
+
 logger = logging.getLogger(__name__)
+
+DEFAULT_CONFIG = "configs/model_config.yaml"
+DEFAULT_MODEL_URI = "models:/xgboost_churn/latest"
 
 
 def _tree_step_and_features(model, X: pd.DataFrame) -> tuple:
@@ -115,3 +122,36 @@ def explain_cohort(model, X: pd.DataFrame, cohort_mask: np.ndarray) -> pd.DataFr
     mean_abs_shap = pd.DataFrame(np.abs(shap_values), columns=X_features.columns).mean().sort_values(ascending=False)
 
     return mean_abs_shap.to_frame("mean_abs_shap")
+
+
+def main(argv: list[str] | None = None) -> dict | None:
+    """Run SHAP explanations for a registered model from the command line.
+
+    Loads the pipeline train.py registers, reads the same raw feature columns
+    predict.py uses, and writes a global importance plot. With --row it also
+    returns one customer's local explanation.
+    """
+    parser = argparse.ArgumentParser(description="SHAP explanations for a registered churn model")
+    parser.add_argument("--input", required=True, help="CSV of customers to explain")
+    parser.add_argument("--config", default=DEFAULT_CONFIG)
+    parser.add_argument("--model-uri", default=DEFAULT_MODEL_URI)
+    parser.add_argument("--output", default="shap_summary.png", help="path for the global summary plot")
+    parser.add_argument("--row", type=int, default=None, help="iloc position of a customer to explain locally")
+    args = parser.parse_args(argv)
+
+    df = load_data(args.input)
+    X = select_feature_frame(df, args.config)
+    model = load_registered_model(args.model_uri)
+
+    explain_global(model, X, args.output)
+
+    if args.row is None:
+        return None
+
+    explanation = explain_local(model, X, args.row)
+    logger.info("Top churn drivers for row %d: %s", args.row, explanation["top_drivers"])
+    return explanation
+
+
+if __name__ == "__main__":
+    main()

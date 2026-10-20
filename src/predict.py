@@ -23,6 +23,37 @@ def feature_columns(config_path: str) -> list[str]:
     return list(cfg_feat["numerical"]) + list(cfg_feat["categorical"])
 
 
+def select_feature_frame(df: pd.DataFrame, config_path: str) -> pd.DataFrame:
+    """Pick the model's feature columns by name from the training config.
+
+    Selecting by name keeps an export's extra columns out and names any
+    missing column instead of letting it reach xgboost, which reports it as a
+    DMatrix dtype error that says nothing about the input file.
+    """
+    feature_cols = feature_columns(config_path)
+    missing = [c for c in feature_cols if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"the input CSV is missing feature columns the model needs: {missing}. "
+            f"The expected columns are listed under 'features' in {config_path}."
+        )
+    return df[feature_cols]
+
+
+def load_registered_model(model_uri: str):
+    """Load a registered MLflow pipeline, with a readable error when the
+    registry has nothing to serve yet."""
+    try:
+        return mlflow.sklearn.load_model(model_uri)
+    except MlflowException as exc:
+        raise RuntimeError(
+            f"Could not load model '{model_uri}' from the MLflow registry. "
+            "Make sure a model has been trained and registered first "
+            "(run train.py), and that MLFLOW_TRACKING_URI points at the "
+            "same store used for training."
+        ) from exc
+
+
 def predict(
     input_path: str,
     output_path: str,
@@ -31,33 +62,13 @@ def predict(
 ):
     """Generate churn predictions for new data."""
     df = load_data(input_path)
-
-    # Pick the feature columns by name from the training config instead of
-    # taking whatever the CSV happens to carry. An export with an extra
-    # column used to reach the model and fail inside xgboost, with a message
-    # about DMatrix dtypes rather than about the input file.
-    feature_cols = feature_columns(config_path)
-    missing = [c for c in feature_cols if c not in df.columns]
-    if missing:
-        raise ValueError(
-            f"{input_path} is missing feature columns the model needs: {missing}. "
-            f"The expected columns are listed under 'features' in {config_path}."
-        )
-    X = df[feature_cols]
+    X = select_feature_frame(df, config_path)
 
     # The registered model is a Pipeline (feature transform + classifier),
     # not a bare classifier, so it expects the same raw columns train.py
     # started from. Applying ChurnFeatureTransformer here too would run the
     # transform twice and feed the model data it was never trained on.
-    try:
-        model = mlflow.sklearn.load_model(model_uri)
-    except MlflowException as exc:
-        raise RuntimeError(
-            f"Could not load model '{model_uri}' from the MLflow registry. "
-            "Make sure a model has been trained and registered first "
-            "(run train.py), and that MLFLOW_TRACKING_URI points at the "
-            "same store used for training."
-        ) from exc
+    model = load_registered_model(model_uri)
 
     probabilities = model.predict_proba(X)[:, 1]
     predictions = model.predict(X)

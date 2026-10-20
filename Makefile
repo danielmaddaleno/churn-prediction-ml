@@ -1,4 +1,4 @@
-.PHONY: install data train eval test lint clean format
+.PHONY: install data train eval explain test lint clean format
 
 install:
 	pip install -r requirements-dev.txt
@@ -15,6 +15,9 @@ train:
 
 eval:
 	PYTHONPATH=src python src/predict.py --config configs/model_config.yaml --input data/raw/churn_data.csv --output predictions.csv
+
+explain:
+	PYTHONPATH=src python src/explain.py --config configs/model_config.yaml --input data/raw/churn_data.csv --output shap_summary.png --row 0
 
 test:
 	pytest tests/ -v --tb=short

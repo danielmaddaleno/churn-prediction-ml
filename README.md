@@ -78,6 +78,14 @@ Covers `ChurnFeatureTransformer` (interaction feature values checked against `da
 
 `src/explain.py` generates SHAP feature importance, both global (which features drive churn across all customers) and local (why one customer scored the way they did). It takes the pipeline `train.py` registers, applies the fitted transform itself and hands the classifier to `shap.TreeExplainer`, so it reads the same raw columns `predict.py` does. A bare classifier works too, with features already transformed.
 
+Run it against a registered model the same way you train or score:
+
+```bash
+python src/explain.py --config configs/model_config.yaml --input data/raw/churn_data.csv --row 0
+```
+
+The global summary lands in `shap_summary.png`. Add `--row N` to also print the top churn drivers for the customer at that position; drop it for the global summary alone. `make explain` runs this against the sample data.
+
 ## Roadmap
 
 - Improve test coverage
