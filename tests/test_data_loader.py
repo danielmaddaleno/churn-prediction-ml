@@ -41,6 +41,26 @@ def test_load_data_missing_required_column_raises(tmp_path, sample_data):
         load_data(csv_path)
 
 
+def test_load_data_without_target_allows_missing_churn(tmp_path, sample_data):
+    # Scoring new customers (predict.py, explain.py) runs on data whose churn
+    # is unknown, so the label cannot be a hard requirement there.
+    csv_path = tmp_path / "scoring.csv"
+    sample_data.drop(columns=["churn"]).to_csv(csv_path, index=False)
+
+    result = load_data(csv_path, require_target=False)
+
+    assert "churn" not in result.columns
+    assert len(result) == len(sample_data)
+
+
+def test_load_data_without_target_still_requires_features(tmp_path, sample_data):
+    csv_path = tmp_path / "scoring.csv"
+    sample_data.drop(columns=["churn", "tenure"]).to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="tenure"):
+        load_data(csv_path, require_target=False)
+
+
 def test_validate_schema_passes_on_clean_data(sample_data):
     assert validate_schema(sample_data) is True
 

@@ -8,11 +8,14 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def load_data(filepath: str | Path) -> pd.DataFrame:
+def load_data(filepath: str | Path, require_target: bool = True) -> pd.DataFrame:
     """Load and validate the churn dataset.
 
     Args:
         filepath: Path to the CSV file.
+        require_target: Whether the churn label must be present. Training needs
+            it, but predict.py and explain.py score customers whose churn is
+            unknown, which is the whole point of inference, so they pass False.
 
     Returns:
         Validated DataFrame.
@@ -28,7 +31,9 @@ def load_data(filepath: str | Path) -> pd.DataFrame:
     logger.info("Loading data from %s", filepath)
     df = pd.read_csv(filepath)
 
-    required_cols = {"customer_id", "tenure", "monthly_charges", "churn"}
+    required_cols = {"customer_id", "tenure", "monthly_charges"}
+    if require_target:
+        required_cols = required_cols | {"churn"}
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"Missing required columns: {missing}")

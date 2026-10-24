@@ -54,6 +54,30 @@ def test_extra_input_column_is_ignored(tmp_path, tiny_config, monkeypatch):
     assert results["churn_probability"].between(0, 1).all()
 
 
+def test_scores_input_without_churn_column(tmp_path, tiny_config, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    df = generate_churn_data(n_rows=200, seed=1)
+    train_path = tmp_path / "train.csv"
+    df.to_csv(train_path, index=False)
+
+    model_name = "xgboost_churn_no_label"
+    train_module.train(str(tiny_config), str(train_path), model_name)
+
+    # New customers to score: the churn label is unknown, so the CSV omits it.
+    scoring = df.drop(columns=["churn"])
+    scoring_path = tmp_path / "scoring.csv"
+    scoring.to_csv(scoring_path, index=False)
+
+    output_path = tmp_path / "predictions.csv"
+    results = predict_module.predict(
+        str(scoring_path), str(output_path), model_uri=f"models:/{model_name}/latest", config_path=str(tiny_config)
+    )
+
+    assert len(results) == len(scoring)
+    assert results["churn_probability"].between(0, 1).all()
+
+
 def test_missing_feature_column_names_the_column(tmp_path, tiny_config):
     df = generate_churn_data(n_rows=20, seed=1).drop(columns=["avg_monthly_usage"])
     scoring_path = tmp_path / "scoring.csv"

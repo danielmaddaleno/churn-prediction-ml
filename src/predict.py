@@ -61,7 +61,7 @@ def predict(
     config_path: str = DEFAULT_CONFIG,
 ):
     """Generate churn predictions for new data."""
-    df = load_data(input_path)
+    df = load_data(input_path, require_target=False)
     X = select_feature_frame(df, config_path)
 
     # The registered model is a Pipeline (feature transform + classifier),

@@ -139,7 +139,7 @@ def main(argv: list[str] | None = None) -> dict | None:
     parser.add_argument("--row", type=int, default=None, help="iloc position of a customer to explain locally")
     args = parser.parse_args(argv)
 
-    df = load_data(args.input)
+    df = load_data(args.input, require_target=False)
     X = select_feature_frame(df, args.config)
     model = load_registered_model(args.model_uri)
 

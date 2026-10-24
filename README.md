@@ -51,7 +51,7 @@ make test    # run the test suite
 
 This is a synthetic dataset, so the number is a sanity check that the pipeline learns real signal (tenure and contract type genuinely drive the label the generator assigns), not a benchmark. Run `make train` yourself to see the exact numbers, or flip `optimize: true` in `configs/model_config.yaml` to run Optuna tuning instead of the fixed params in `model.params` (slower, off by default so `make train` finishes in seconds).
 
-To use your own data, point `--input` at a CSV with `customer_id`, the numerical/categorical columns listed in `configs/model_config.yaml`, and a `churn` column:
+To use your own data, point `--input` at a CSV with `customer_id` and the numerical/categorical columns listed in `configs/model_config.yaml`. Training also needs a `churn` column; scoring does not, since that label is what the model predicts for new customers:
 
 ```bash
 python src/train.py --config configs/model_config.yaml --input path/to/your_data.csv
