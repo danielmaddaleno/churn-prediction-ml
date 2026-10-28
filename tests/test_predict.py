@@ -87,3 +87,45 @@ def test_missing_feature_column_names_the_column(tmp_path, tiny_config):
         predict_module.predict(
             str(scoring_path), str(tmp_path / "out.csv"), model_uri="models:/nope/latest", config_path=str(tiny_config)
         )
+
+
+def test_threshold_sets_the_churn_label_from_the_probability(tmp_path, tiny_config, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    df = generate_churn_data(n_rows=300, seed=1)
+    train_path = tmp_path / "train.csv"
+    df.to_csv(train_path, index=False)
+
+    model_name = "xgboost_churn_threshold"
+    train_module.train(str(tiny_config), str(train_path), model_name)
+
+    scoring_path = tmp_path / "scoring.csv"
+    df.drop(columns=["churn"]).to_csv(scoring_path, index=False)
+    model_uri = f"models:/{model_name}/latest"
+
+    low = predict_module.predict(
+        str(scoring_path), str(tmp_path / "low.csv"), model_uri=model_uri, config_path=str(tiny_config), threshold=0.2
+    )
+    high = predict_module.predict(
+        str(scoring_path), str(tmp_path / "high.csv"), model_uri=model_uri, config_path=str(tiny_config), threshold=0.8
+    )
+
+    # The label is exactly the probability compared against the threshold.
+    assert (low["churn_prediction"] == (low["churn_probability"] >= 0.2).astype(int)).all()
+    assert (high["churn_prediction"] == (high["churn_probability"] >= 0.8).astype(int)).all()
+    # A lower cutoff can only flag more churners, never fewer, on the same rows.
+    assert low["churn_prediction"].sum() >= high["churn_prediction"].sum()
+
+
+def test_threshold_out_of_range_is_rejected(tmp_path, tiny_config):
+    scoring_path = tmp_path / "scoring.csv"
+    generate_churn_data(n_rows=10, seed=1).to_csv(scoring_path, index=False)
+
+    with pytest.raises(ValueError, match="threshold must be between 0 and 1"):
+        predict_module.predict(
+            str(scoring_path),
+            str(tmp_path / "out.csv"),
+            model_uri="models:/nope/latest",
+            config_path=str(tiny_config),
+            threshold=1.5,
+        )

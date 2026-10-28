@@ -59,8 +59,19 @@ def predict(
     output_path: str,
     model_uri: str = "models:/xgboost_churn/latest",
     config_path: str = DEFAULT_CONFIG,
+    threshold: float = 0.5,
 ):
-    """Generate churn predictions for new data."""
+    """Generate churn predictions for new data.
+
+    threshold is the churn probability at or above which a customer is
+    labelled a churner. It defaults to 0.5 (what XGBClassifier.predict uses),
+    but churn work usually wants it lower: missing a customer who leaves costs
+    far more than offering retention to one who would have stayed, so a lower
+    cutoff that trades precision for recall is the common choice.
+    """
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError(f"threshold must be between 0 and 1, got {threshold}")
+
     df = load_data(input_path, require_target=False)
     X = select_feature_frame(df, config_path)
 
@@ -71,7 +82,10 @@ def predict(
     model = load_registered_model(model_uri)
 
     probabilities = model.predict_proba(X)[:, 1]
-    predictions = model.predict(X)
+    # Label straight off the probability instead of model.predict, which is
+    # pinned to a 0.5 cutoff. At threshold 0.5 the two agree; a lower
+    # threshold is what lets this catch more churners.
+    predictions = (probabilities >= threshold).astype(int)
 
     results = pd.DataFrame(
         {
@@ -105,5 +119,11 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="predictions.csv")
     parser.add_argument("--model-uri", default="models:/xgboost_churn/latest")
     parser.add_argument("--config", default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.5,
+        help="churn probability at or above which a customer is labelled a churner",
+    )
     args = parser.parse_args()
-    predict(args.input, args.output, args.model_uri, args.config)
+    predict(args.input, args.output, args.model_uri, args.config, args.threshold)

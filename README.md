@@ -58,6 +58,12 @@ python src/train.py --config configs/model_config.yaml --input path/to/your_data
 python src/predict.py --config configs/model_config.yaml --input path/to/new_customers.csv --output predictions.csv
 ```
 
+`predict.py` labels a customer a churner when the predicted probability is at or above `--threshold` (default 0.5). Lower it to catch more churners when a missed churner costs more than a wasted retention offer, which is the usual trade-off:
+
+```bash
+python src/predict.py --config configs/model_config.yaml --input new_customers.csv --output predictions.csv --threshold 0.3
+```
+
 ## How train and predict stay in sync
 
 `train.py` wraps the fitted `ChurnFeatureTransformer` and the fitted `XGBClassifier` in a single `sklearn.Pipeline` and registers that pipeline with MLflow, not the bare model. `predict.py` loads the registered pipeline and passes it the same raw columns train.py started from, selected by name from the same config so an input file with extra columns still scores. That's deliberate: a model trained on transformed features (scaled numerics, encoded categoricals, derived columns like `tenure_bucket`) will silently produce wrong predictions if you serve it engineered-at-training-time-only features raw. Keeping the transform inside the artifact that gets loaded at inference time removes that failure mode.
