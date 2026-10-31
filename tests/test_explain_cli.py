@@ -81,6 +81,73 @@ def test_cli_returns_a_local_explanation_for_a_row(tmp_path, tiny_config, monkey
     assert len(result["top_drivers"]) == 5
 
 
+def test_cli_returns_cohort_drivers(tmp_path, tiny_config, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data_path = _train_tiny_model(tmp_path, tiny_config, "xgboost_churn_cli_cohort")
+
+    result = explain_module.main(
+        [
+            "--input",
+            str(data_path),
+            "--config",
+            str(tiny_config),
+            "--model-uri",
+            "models:/xgboost_churn_cli_cohort/latest",
+            "--output",
+            str(tmp_path / "summary.png"),
+            "--cohort",
+            "tenure < 24",
+        ]
+    )
+
+    assert list(result.columns) == ["mean_abs_shap"]
+    assert set(result.index) == set(NUMERICAL + CATEGORICAL + ENGINEERED)
+    assert (result["mean_abs_shap"] >= 0).all()
+    assert result["mean_abs_shap"].is_monotonic_decreasing
+
+
+def test_cli_empty_cohort_raises(tmp_path, tiny_config, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data_path = _train_tiny_model(tmp_path, tiny_config, "xgboost_churn_cli_cohort_empty")
+
+    with pytest.raises(ValueError, match="selected 0 rows"):
+        explain_module.main(
+            [
+                "--input",
+                str(data_path),
+                "--config",
+                str(tiny_config),
+                "--model-uri",
+                "models:/xgboost_churn_cli_cohort_empty/latest",
+                "--output",
+                str(tmp_path / "summary.png"),
+                "--cohort",
+                "tenure > 100000",
+            ]
+        )
+
+
+def test_cli_rejects_a_non_boolean_cohort_filter(tmp_path, tiny_config, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data_path = _train_tiny_model(tmp_path, tiny_config, "xgboost_churn_cli_cohort_bad")
+
+    with pytest.raises(ValueError, match="boolean condition"):
+        explain_module.main(
+            [
+                "--input",
+                str(data_path),
+                "--config",
+                str(tiny_config),
+                "--model-uri",
+                "models:/xgboost_churn_cli_cohort_bad/latest",
+                "--output",
+                str(tmp_path / "summary.png"),
+                "--cohort",
+                "tenure",
+            ]
+        )
+
+
 def test_cli_names_a_missing_feature_column(tmp_path, tiny_config, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _train_tiny_model(tmp_path, tiny_config, "xgboost_churn_cli_missing")

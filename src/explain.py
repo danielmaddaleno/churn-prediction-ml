@@ -124,12 +124,38 @@ def explain_cohort(model, X: pd.DataFrame, cohort_mask: np.ndarray) -> pd.DataFr
     return mean_abs_shap.to_frame("mean_abs_shap")
 
 
-def main(argv: list[str] | None = None) -> dict | None:
+def cohort_mask_from_query(df: pd.DataFrame, query: str) -> np.ndarray:
+    """Turn a --cohort filter string into a boolean row mask over ``df``.
+
+    The filter is a pandas query expression over the input columns, so it can
+    pick a segment by any of them (`tenure < 12`, `contract_type ==
+    'Month-to-month'`), not only the model's features.
+
+    Raises:
+        ValueError: If the expression does not parse or is not a boolean condition.
+    """
+    try:
+        mask = df.eval(query)
+    except Exception as exc:
+        raise ValueError(
+            f"could not evaluate --cohort filter {query!r}: {exc}. "
+            f'Write it as a pandas query over the input columns {list(df.columns)}, e.g. "tenure < 12".'
+        ) from exc
+    if not pd.api.types.is_bool_dtype(mask):
+        raise ValueError(
+            f'--cohort filter {query!r} has to be a boolean condition (e.g. "tenure < 12"), '
+            f"but it evaluated to {getattr(mask, 'dtype', type(mask).__name__)}"
+        )
+    return np.asarray(mask, dtype=bool)
+
+
+def main(argv: list[str] | None = None) -> dict | pd.DataFrame | None:
     """Run SHAP explanations for a registered model from the command line.
 
     Loads the pipeline train.py registers, reads the same raw feature columns
-    predict.py uses, and writes a global importance plot. With --row it also
-    returns one customer's local explanation.
+    predict.py uses, and writes a global importance plot. With --cohort it also
+    returns a segment's aggregated drivers, and with --row one customer's local
+    explanation (which takes precedence as the return value when both are given).
     """
     parser = argparse.ArgumentParser(description="SHAP explanations for a registered churn model")
     parser.add_argument("--input", required=True, help="CSV of customers to explain")
@@ -137,6 +163,11 @@ def main(argv: list[str] | None = None) -> dict | None:
     parser.add_argument("--model-uri", default=DEFAULT_MODEL_URI)
     parser.add_argument("--output", default="shap_summary.png", help="path for the global summary plot")
     parser.add_argument("--row", type=int, default=None, help="iloc position of a customer to explain locally")
+    parser.add_argument(
+        "--cohort",
+        default=None,
+        help='pandas query selecting a segment to explain together, e.g. "tenure < 12"',
+    )
     args = parser.parse_args(argv)
 
     df = load_data(args.input, require_target=False)
@@ -145,12 +176,25 @@ def main(argv: list[str] | None = None) -> dict | None:
 
     explain_global(model, X, args.output)
 
-    if args.row is None:
-        return None
+    result: dict | pd.DataFrame | None = None
 
-    explanation = explain_local(model, X, args.row)
-    logger.info("Top churn drivers for row %d: %s", args.row, explanation["top_drivers"])
-    return explanation
+    if args.cohort is not None:
+        mask = cohort_mask_from_query(df, args.cohort)
+        cohort_importance = explain_cohort(model, X, mask)
+        logger.info(
+            "Cohort %r (%d customers) churn drivers:\n%s",
+            args.cohort,
+            int(mask.sum()),
+            cohort_importance.to_string(),
+        )
+        result = cohort_importance
+
+    if args.row is not None:
+        explanation = explain_local(model, X, args.row)
+        logger.info("Top churn drivers for row %d: %s", args.row, explanation["top_drivers"])
+        result = explanation
+
+    return result
 
 
 if __name__ == "__main__":

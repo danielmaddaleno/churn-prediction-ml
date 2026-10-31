@@ -92,6 +92,15 @@ python src/explain.py --config configs/model_config.yaml --input data/raw/churn_
 
 The global summary lands in `shap_summary.png`. Add `--row N` to also print the top churn drivers for the customer at that position; drop it for the global summary alone. `make explain` runs this against the sample data.
 
+Use `--cohort` to rank the drivers for a segment of customers instead of one customer or the whole population. It takes a pandas query over the input columns:
+
+```bash
+python src/explain.py --config configs/model_config.yaml --input data/raw/churn_data.csv --cohort "tenure < 12"
+python src/explain.py --config configs/model_config.yaml --input data/raw/churn_data.csv --cohort "contract_type == 'Month-to-month'"
+```
+
+`make explain-cohort` runs this against the sample data's shortest-tenure customers.
+
 ## Roadmap
 
 - Improve test coverage

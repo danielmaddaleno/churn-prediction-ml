@@ -1,4 +1,4 @@
-.PHONY: install data train eval explain test lint clean format
+.PHONY: install data train eval explain explain-cohort test lint clean format
 
 install:
 	pip install -r requirements-dev.txt
@@ -18,6 +18,9 @@ eval:
 
 explain:
 	PYTHONPATH=src python src/explain.py --config configs/model_config.yaml --input data/raw/churn_data.csv --output shap_summary.png --row 0
+
+explain-cohort:
+	PYTHONPATH=src python src/explain.py --config configs/model_config.yaml --input data/raw/churn_data.csv --output shap_summary.png --cohort "tenure < 12"
 
 test:
 	pytest tests/ -v --tb=short
