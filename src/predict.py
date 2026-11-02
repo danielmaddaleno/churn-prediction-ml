@@ -4,9 +4,11 @@ import argparse
 import logging
 
 import mlflow
+import numpy as np
 import pandas as pd
 import yaml
 from mlflow.exceptions import MlflowException
+from sklearn.metrics import classification_report, roc_auc_score
 
 from data_loader import load_data
 
@@ -52,6 +54,37 @@ def load_registered_model(model_uri: str):
             "(run train.py), and that MLFLOW_TRACKING_URI points at the "
             "same store used for training."
         ) from exc
+
+
+def backtest_metrics(
+    y_true: pd.Series,
+    probabilities: np.ndarray,
+    predictions: np.ndarray,
+) -> dict | None:
+    """Score predictions against a known churn label, for a labelled holdout.
+
+    New customers have no label, so scoring them produces no metrics. But a
+    holdout exported with its true churn column is a backtest, and the obvious
+    question is how the registered model did on it. Report that instead of
+    dropping the column.
+
+    Returns None when the churn column has no 0/1 label to score against (all
+    null, or values outside {0, 1}). With a single class present the report is
+    still returned, but ROC-AUC is left out since it cannot rank one class.
+    """
+    labelled = y_true.notna().to_numpy()
+    y = y_true[labelled]
+    if y.empty or not set(y.unique()) <= {0, 1}:
+        return None
+
+    y = y.astype(int)
+    metrics: dict = {
+        "n_scored": int(labelled.sum()),
+        "classification_report": classification_report(y, predictions[labelled], zero_division=0),
+    }
+    if y.nunique() == 2:
+        metrics["roc_auc"] = float(roc_auc_score(y, probabilities[labelled]))
+    return metrics
 
 
 def predict(
@@ -110,6 +143,20 @@ def predict(
 
     # Summary
     logger.info("Risk distribution:\n%s", results["risk_tier"].value_counts().to_string())
+
+    # When the scoring input carries the true label (a labelled holdout rather
+    # than new customers), report how the model did on it. The label is read
+    # at the chosen threshold, so the report matches the churn_prediction column.
+    if "churn" in df.columns:
+        metrics = backtest_metrics(df["churn"], probabilities, predictions)
+        if metrics is None:
+            logger.info("Input has a churn column but no 0/1 labels to backtest against")
+        else:
+            if "roc_auc" in metrics:
+                logger.info("Backtest ROC-AUC on %d labelled rows: %.4f", metrics["n_scored"], metrics["roc_auc"])
+            logger.info("Backtest classification report:\n%s", metrics["classification_report"])
+            results.attrs["metrics"] = metrics
+
     return results
 
 

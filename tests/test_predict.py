@@ -8,6 +8,8 @@ a message about DMatrix dtypes instead of about the file.
 import sys
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -129,3 +131,87 @@ def test_threshold_out_of_range_is_rejected(tmp_path, tiny_config):
             config_path=str(tiny_config),
             threshold=1.5,
         )
+
+
+def test_backtest_metrics_scores_a_labelled_holdout(tmp_path, tiny_config, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    df = generate_churn_data(n_rows=300, seed=1)
+    train_path = tmp_path / "train.csv"
+    df.to_csv(train_path, index=False)
+
+    model_name = "xgboost_churn_backtest"
+    train_module.train(str(tiny_config), str(train_path), model_name)
+
+    # Score a CSV that still carries the churn column: that is a backtest.
+    scoring_path = tmp_path / "scoring.csv"
+    df.to_csv(scoring_path, index=False)
+
+    results = predict_module.predict(
+        str(scoring_path),
+        str(tmp_path / "out.csv"),
+        model_uri=f"models:/{model_name}/latest",
+        config_path=str(tiny_config),
+    )
+
+    metrics = results.attrs["metrics"]
+    assert metrics["n_scored"] == len(df)
+    assert 0.0 <= metrics["roc_auc"] <= 1.0
+    assert "precision" in metrics["classification_report"]
+
+
+def test_backtest_skipped_when_input_has_no_label(tmp_path, tiny_config, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    df = generate_churn_data(n_rows=200, seed=1)
+    train_path = tmp_path / "train.csv"
+    df.to_csv(train_path, index=False)
+
+    model_name = "xgboost_churn_no_backtest"
+    train_module.train(str(tiny_config), str(train_path), model_name)
+
+    scoring_path = tmp_path / "scoring.csv"
+    df.drop(columns=["churn"]).to_csv(scoring_path, index=False)
+
+    results = predict_module.predict(
+        str(scoring_path),
+        str(tmp_path / "out.csv"),
+        model_uri=f"models:/{model_name}/latest",
+        config_path=str(tiny_config),
+    )
+
+    assert "metrics" not in results.attrs
+
+
+def test_backtest_metrics_rank_a_perfect_split():
+    y_true = pd.Series([0, 0, 1, 1])
+    probabilities = np.array([0.1, 0.2, 0.8, 0.9])
+    predictions = np.array([0, 0, 1, 1])
+
+    metrics = predict_module.backtest_metrics(y_true, probabilities, predictions)
+
+    assert metrics is not None
+    assert metrics["n_scored"] == 4
+    assert metrics["roc_auc"] == 1.0
+
+
+def test_backtest_metrics_drop_unlabelled_rows_and_skip_a_single_class():
+    # Two rows carry no label and are left out; the labelled rows are all one
+    # class, so there is a report but ROC-AUC cannot rank it.
+    y_true = pd.Series([1.0, 1.0, np.nan, np.nan])
+    probabilities = np.array([0.7, 0.6, 0.4, 0.3])
+    predictions = np.array([1, 1, 0, 0])
+
+    metrics = predict_module.backtest_metrics(y_true, probabilities, predictions)
+
+    assert metrics is not None
+    assert metrics["n_scored"] == 2
+    assert "roc_auc" not in metrics
+
+
+def test_backtest_metrics_return_none_without_usable_labels():
+    y_true = pd.Series([np.nan, np.nan, np.nan])
+    probabilities = np.array([0.5, 0.5, 0.5])
+    predictions = np.array([1, 1, 1])
+
+    assert predict_module.backtest_metrics(y_true, probabilities, predictions) is None
