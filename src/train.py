@@ -25,8 +25,23 @@ def load_config(path: str) -> dict:
     return config
 
 
-def objective(trial, X_train, y_train, cv_folds: int) -> float:
-    """Optuna objective for XGBoost hyperparameter tuning."""
+def objective(
+    trial,
+    X_train_raw,
+    y_train,
+    numerical_cols: list[str],
+    categorical_cols: list[str],
+    cv_folds: int,
+) -> float:
+    """Optuna objective for XGBoost hyperparameter tuning.
+
+    Cross-validates on the raw training columns with the feature transform
+    inside the pipeline, so StandardScaler and the label encoders refit on each
+    fold's training rows alone. Scoring pre-transformed features would fit them
+    once on the whole training set, and every fold's validation rows would then
+    reach the model through a scaler and encoders that had already seen them,
+    lifting the tuning score above what the chosen params actually earn.
+    """
     params = {
         "n_estimators": trial.suggest_int("n_estimators", 100, 800),
         "max_depth": trial.suggest_int("max_depth", 3, 10),
@@ -38,9 +53,14 @@ def objective(trial, X_train, y_train, cv_folds: int) -> float:
         "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10, log=True),
     }
 
-    model = XGBClassifier(**params, eval_metric="auc", random_state=42)
+    pipeline = Pipeline(
+        [
+            ("features", ChurnFeatureTransformer(numerical_cols=numerical_cols, categorical_cols=categorical_cols)),
+            ("model", XGBClassifier(**params, eval_metric="auc", random_state=42)),
+        ]
+    )
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
-    scores = cross_val_score(model, X_train, y_train, cv=cv, scoring="roc_auc")
+    scores = cross_val_score(pipeline, X_train_raw, y_train, cv=cv, scoring="roc_auc")
     return float(scores.mean())
 
 
@@ -90,7 +110,14 @@ def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
         logger.info("Running Optuna optimization with %d trials", cfg_train["n_trials"])
         study = optuna.create_study(direction="maximize")
         study.optimize(
-            lambda trial: objective(trial, X_train, y_train, cfg_train["cv_folds"]),
+            lambda trial: objective(
+                trial,
+                X_train_raw,
+                y_train,
+                cfg_feat["numerical"],
+                cfg_feat["categorical"],
+                cfg_train["cv_folds"],
+            ),
             n_trials=cfg_train["n_trials"],
         )
         best_params = study.best_params
