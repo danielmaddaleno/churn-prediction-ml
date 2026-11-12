@@ -53,10 +53,15 @@ def objective(
         "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10, log=True),
     }
 
+    # Weight the churn class the same way the final model will, so tuning scores
+    # the model that ships rather than an unweighted stand-in and does not pick
+    # params that only look good without the reweighting.
+    pos_weight = positive_class_weight(y_train)
+
     pipeline = Pipeline(
         [
             ("features", ChurnFeatureTransformer(numerical_cols=numerical_cols, categorical_cols=categorical_cols)),
-            ("model", XGBClassifier(**params, eval_metric="auc", random_state=42)),
+            ("model", XGBClassifier(**params, eval_metric="auc", random_state=42, scale_pos_weight=pos_weight)),
         ]
     )
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)

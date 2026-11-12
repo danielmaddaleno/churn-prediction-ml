@@ -69,3 +69,26 @@ def test_objective_refits_the_transformer_inside_each_fold(raw_training_data, mo
     # never refit it during cross-validation.
     assert len(fit_sizes) == cv_folds
     assert all(n < len(X_train_raw) for n in fit_sizes)
+
+
+def test_objective_weights_the_minority_class_like_final_training(raw_training_data, monkeypatch):
+    """The CV model must carry the same scale_pos_weight the shipped model gets,
+    or tuning picks hyperparameters for an unweighted model it never trains."""
+    X_train_raw, y_train = raw_training_data
+
+    seen = []
+    real_cls = train_module.XGBClassifier
+
+    class SpyXGBClassifier(real_cls):
+        def fit(self, X, y, **kwargs):
+            seen.append(self.get_params().get("scale_pos_weight"))
+            return super().fit(X, y, **kwargs)
+
+    monkeypatch.setattr(train_module, "XGBClassifier", SpyXGBClassifier)
+
+    trial = optuna.trial.FixedTrial(FIXED_PARAMS)
+    train_module.objective(trial, X_train_raw, y_train, NUMERICAL, CATEGORICAL, cv_folds=3)
+
+    expected = train_module.positive_class_weight(y_train)
+    assert expected > 1.0, "the sample data is imbalanced, so the weight must exceed 1"
+    assert seen and all(w == pytest.approx(expected) for w in seen)
