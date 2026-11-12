@@ -49,6 +49,8 @@ make test    # run the test suite
 
 `make train` trains an XGBoost classifier on the committed sample data and prints a test ROC-AUC along with a classification report. Against the sample data it lands around 0.75 ROC-AUC. The transformer is fit on the training rows only and early stopping watches a validation slice held out from those rows, so the test split is scored once at the end and nothing before that has seen it.
 
+The target is imbalanced (about three non-churners per churner in the sample data), so training sets XGBoost's `scale_pos_weight` to the training split's negative/positive ratio. Without it the classifier leans on the majority and recalls only about a third of the churners on the sample data; with it recall on the churn class roughly doubles at some cost to precision, which is the trade churn work usually wants. Pin `scale_pos_weight` under `model.params` in the config to override the computed value (set it to 1 to turn the reweighting off).
+
 This is a synthetic dataset, so the number is a sanity check that the pipeline learns real signal (tenure and contract type genuinely drive the label the generator assigns), not a benchmark. Run `make train` yourself to see the exact numbers, or flip `optimize: true` in `configs/model_config.yaml` to run Optuna tuning instead of the fixed params in `model.params` (slower, off by default so `make train` finishes in seconds).
 
 To use your own data, point `--input` at a CSV with `customer_id` and the numerical/categorical columns listed in `configs/model_config.yaml`. Training also needs a `churn` column; scoring does not, since that label is what the model predicts for new customers:

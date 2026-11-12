@@ -64,6 +64,21 @@ def objective(
     return float(scores.mean())
 
 
+def positive_class_weight(y_train) -> float:
+    """scale_pos_weight for XGBoost from the training split's class balance.
+
+    Churn runs about three non-churners per churner here. XGBoost weights the
+    classes equally by default, so it favours the majority and under-detects
+    the churners the model exists to flag. n_neg / n_pos is XGBoost's documented
+    counterweight; 1.0 (a no-op) when either class is absent.
+    """
+    n_pos = int((y_train == 1).sum())
+    n_neg = int((y_train == 0).sum())
+    if n_pos == 0 or n_neg == 0:
+        return 1.0
+    return n_neg / n_pos
+
+
 def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
     """Run the full training pipeline."""
     config = load_config(config_path)
@@ -132,6 +147,9 @@ def train(config_path: str, input_path: str, model_name: str = "xgboost_churn"):
     final_params = dict(best_params)
     final_params.setdefault("eval_metric", "logloss")
     final_params.setdefault("random_state", 42)
+    # Counterweight the churn/no-churn imbalance unless the config pins a value.
+    # Read off the training split, so the held-out test rows stay untouched.
+    final_params.setdefault("scale_pos_weight", positive_class_weight(y_train))
 
     with mlflow.start_run():
         model = XGBClassifier(**final_params)
